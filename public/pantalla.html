@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Pantalla de turnos</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      background: #0f1720;
+      color: #e8eef4;
+      height: 100vh;
+      display: grid;
+      grid-template-columns: 2fr 1fr;
+      overflow: hidden;
+    }
+
+    /* ---------- Panel izquierdo: turno actual ---------- */
+    .actual {
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      background: #f5f8fb;
+      color: #1a2733;
+      text-align: center;
+      padding: 2rem;
+    }
+    .actual .titulo {
+      font-size: 1.6rem;
+      color: #2e7dd1;
+      font-weight: 600;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+    }
+    .actual .turno {
+      font-size: clamp(6rem, 20vw, 13rem);
+      font-weight: 800;
+      color: #2e7dd1;
+      line-height: 1.05;
+    }
+    .actual .puesto {
+      font-size: clamp(2rem, 5vw, 3.5rem);
+      font-weight: 600;
+      color: #3b4a58;
+    }
+    .actual.parpadeo .turno { animation: flash 0.5s ease-in-out 4; }
+    @keyframes flash { 50% { opacity: 0.15; } }
+
+    /* ---------- Panel derecho: últimos 3 ---------- */
+    .historial {
+      background: #16202b;
+      padding: 1.5rem;
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+    }
+    .historial h2 {
+      font-size: 1rem;
+      text-transform: uppercase;
+      letter-spacing: 2px;
+      color: #7f93a6;
+      border-bottom: 1px solid #2a3947;
+      padding-bottom: 0.6rem;
+    }
+    .item {
+      background: #1f2d3b;
+      border-left: 4px solid #2e7dd1;
+      border-radius: 6px;
+      padding: 0.9rem 1.1rem;
+    }
+    .item .codigo { font-size: 1.5rem; font-weight: 700; }
+    .item .detalle { font-size: 0.85rem; color: #8fa3b5; margin-top: 2px; }
+
+    .pie {
+      margin-top: auto;
+      font-size: 0.85rem;
+      color: #7f93a6;
+      display: flex;
+      justify-content: space-between;
+    }
+    .aviso-sonido {
+      position: fixed;
+      bottom: 12px;
+      left: 12px;
+      background: #ffcc00;
+      color: #1a2733;
+      padding: 8px 14px;
+      border-radius: 6px;
+      font-size: 0.85rem;
+      cursor: pointer;
+      font-weight: 600;
+    }
+    .oculto { display: none; }
+  </style>
+</head>
+<body>
+  <!-- Panel principal: replica el diseño de la consigna -->
+  <div class="actual" id="panelActual">
+    <div class="titulo">Nuevo turno</div>
+    <div class="turno" id="turno">—</div>
+    <div class="puesto" id="puesto">Esperando...</div>
+  </div>
+
+  <!-- Últimos 3 tickets de la cola -->
+  <aside class="historial">
+    <h2>Últimos llamados</h2>
+    <div id="lista"></div>
+    <div class="pie">
+      <span>En espera: <b id="enEspera">0</b></span>
+      <span>Atendidos hoy: <b id="atendidosHoy">0</b></span>
+    </div>
+  </aside>
+
+  <!-- Los navegadores bloquean el audio hasta que el usuario interactúa -->
+  <button class="aviso-sonido" id="avisoSonido">🔊 Tocá acá para activar el sonido</button>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script>
+    const socket = io();
+
+    // ---------- SONIDO con Web Audio API (sin archivos externos) ----------
+    let audioCtx = null;
+    document.getElementById('avisoSonido').addEventListener('click', (e) => {
+      audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      e.target.classList.add('oculto');
+    });
+
+    // "Ding-dong" de dos notas, como en un banco
+    function sonarCampana() {
+      if (!audioCtx) return;
+      const notas = [880, 660]; // frecuencias en Hz
+      notas.forEach((freq, i) => {
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = 'sine';
+        osc.frequency.value = freq;
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        const t = audioCtx.currentTime + i * 0.35;
+        gain.gain.setValueAtTime(0.4, t);
+        gain.gain.exponentialRampToValueAtTime(0.001, t + 0.6);
+        osc.start(t);
+        osc.stop(t + 0.6);
+      });
+    }
+
+    // ---------- Voz sintetizada (extra): "Turno A5, puesto 3" ----------
+    function anunciarVoz(codigo, puesto) {
+      if (!('speechSynthesis' in window)) return;
+      const frase = new SpeechSynthesisUtterance(`Turno ${codigo.split('').join(' ')}, puesto ${puesto}`);
+      frase.lang = 'es-AR';
+      speechSynthesis.speak(frase);
+    }
+
+    // ---------- Helpers de render ----------
+    function tiempoDesde(ts) {
+      const min = Math.floor((Date.now() - ts) / 60000);
+      if (min < 1) return 'recién';
+      return `hace ${min} min`;
+    }
+
+    function render(estado) {
+      const { ticketActual, ultimos3, enEspera, atendidosHoy } = estado;
+
+      document.getElementById('turno').textContent = ticketActual ? ticketActual.codigo : '—';
+      document.getElementById('puesto').textContent = ticketActual ? `Puesto ${ticketActual.puesto}` : 'Esperando...';
+      document.getElementById('enEspera').textContent = enEspera;
+      document.getElementById('atendidosHoy').textContent = atendidosHoy;
+
+      document.getElementById('lista').innerHTML = ultimos3.map(t => `
+        <div class="item">
+          <div class="codigo">Turno ${t.codigo}</div>
+          <div class="detalle">Puesto ${t.puesto} · ${tiempoDesde(t.llamadoEn)}</div>
+        </div>
+      `).join('') || '<div class="item"><div class="detalle">Sin llamados todavía</div></div>';
+    }
+
+    // ---------- Eventos del servidor ----------
+    let ultimoEstado = null;
+
+    socket.on('estado', (estado) => {
+      ultimoEstado = estado;
+      render(estado);
+    });
+
+    socket.on('ticket-llamado', (ticket) => {
+      sonarCampana();
+      anunciarVoz(ticket.codigo, ticket.puesto);
+      const panel = document.getElementById('panelActual');
+      panel.classList.remove('parpadeo');
+      void panel.offsetWidth; // reinicia la animación
+      panel.classList.add('parpadeo');
+    });
+
+    // Refrescamos los "hace X min" cada 30 segundos con el último estado recibido
+    setInterval(() => { if (ultimoEstado) render(ultimoEstado); }, 30000);
+  </script>
+</body>
+</html>

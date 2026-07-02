@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Estadísticas - Tickets por día</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      background: #f5f8fb;
+      min-height: 100vh;
+      padding: 2rem;
+      display: flex;
+      justify-content: center;
+    }
+    .panel { width: 100%; max-width: 560px; }
+    h1 { color: #1a2733; font-size: 1.5rem; margin-bottom: 0.3rem; }
+    p.sub { color: #5a6b7a; margin-bottom: 1.5rem; }
+    .hoy {
+      background: #2e7dd1;
+      color: white;
+      border-radius: 14px;
+      padding: 1.4rem;
+      text-align: center;
+      margin-bottom: 1.5rem;
+    }
+    .hoy .num { font-size: 3.4rem; font-weight: 800; }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      background: white;
+      border-radius: 12px;
+      overflow: hidden;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.06);
+    }
+    th, td { padding: 0.9rem 1.2rem; text-align: left; }
+    th { background: #1a2733; color: white; font-size: 0.85rem; text-transform: uppercase; letter-spacing: 1px; }
+    tr:nth-child(even) td { background: #f2f6fa; }
+    .barra {
+      height: 10px;
+      background: #2e7dd1;
+      border-radius: 5px;
+      min-width: 4px;
+    }
+  </style>
+</head>
+<body>
+  <div class="panel">
+    <h1>📊 Tickets atendidos por día</h1>
+    <p class="sub">Se actualiza en tiempo real con cada llamado.</p>
+
+    <div class="hoy">
+      <div>Atendidos hoy</div>
+      <div class="num" id="hoy">0</div>
+    </div>
+
+    <table>
+      <thead>
+        <tr><th>Fecha</th><th>Atendidos</th><th></th></tr>
+      </thead>
+      <tbody id="tabla"></tbody>
+    </table>
+  </div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script>
+    const socket = io();
+
+    socket.on('estado', (estado) => {
+      document.getElementById('hoy').textContent = estado.atendidosHoy;
+
+      const dias = Object.entries(estado.atendidosPorDia)
+        .sort((a, b) => b[0].localeCompare(a[0])); // más reciente primero
+
+      const max = Math.max(1, ...dias.map(([, n]) => n));
+
+      document.getElementById('tabla').innerHTML = dias.map(([fecha, n]) => `
+        <tr>
+          <td>${fecha}</td>
+          <td><b>${n}</b></td>
+          <td style="width:40%"><div class="barra" style="width:${(n / max) * 100}%"></div></td>
+        </tr>
+      `).join('') || '<tr><td colspan="3">Sin datos todavía</td></tr>';
+    });
+  </script>
+</body>
+</html>

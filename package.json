@@ -1,0 +1,17 @@
+{
+  "name": "sistema-tickets",
+  "version": "1.0.0",
+  "description": "Sistema de gestión de cola de tickets en tiempo real con WebSockets (Socket.IO)",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js"
+  },
+  "keywords": ["websockets", "socket.io", "tickets", "tiempo-real"],
+  "author": "Luciano",
+  "license": "MIT",
+  "dependencies": {
+    "express": "^4.19.2",
+    "socket.io": "^4.7.5"
+  }
+}

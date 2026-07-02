@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Tótem - Sacar turno</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      background: #f5f8fb;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 2rem;
+      padding: 2rem;
+    }
+    h1 { color: #2e7dd1; font-size: 2rem; text-align: center; }
+    .botones { display: flex; flex-wrap: wrap; gap: 1.2rem; justify-content: center; }
+    button.cat {
+      font-size: 1.3rem;
+      font-weight: 600;
+      padding: 2rem 2.5rem;
+      border: none;
+      border-radius: 14px;
+      background: #2e7dd1;
+      color: white;
+      cursor: pointer;
+      min-width: 220px;
+      transition: transform 0.1s ease;
+    }
+    button.cat:hover { transform: scale(1.03); background: #266bb5; }
+    button.cat span { display: block; font-size: 2.2rem; margin-bottom: 0.4rem; }
+
+    .ticket {
+      background: white;
+      border: 2px dashed #2e7dd1;
+      border-radius: 12px;
+      padding: 1.5rem 3rem;
+      text-align: center;
+      display: none;
+    }
+    .ticket.visible { display: block; animation: aparecer 0.3s ease; }
+    @keyframes aparecer { from { transform: scale(0.8); opacity: 0; } }
+    .ticket .codigo { font-size: 4rem; font-weight: 800; color: #2e7dd1; }
+    .ticket .info { color: #5a6b7a; margin-top: 0.5rem; }
+    .espera { color: #5a6b7a; font-size: 1.1rem; }
+  </style>
+</head>
+<body>
+  <h1>🎫 Seleccione el tipo de trámite</h1>
+
+  <div class="botones">
+    <button class="cat" data-cat="A"><span>🧾</span>Atención general</button>
+    <button class="cat" data-cat="B"><span>💳</span>Pagos</button>
+    <button class="cat" data-cat="C"><span>❓</span>Consultas</button>
+  </div>
+
+  <div class="ticket" id="ticket">
+    <div class="codigo" id="codigo"></div>
+    <div class="info">Su turno fue emitido. Aguarde a ser llamado.</div>
+  </div>
+
+  <div class="espera">Personas en espera: <b id="enEspera">0</b></div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script>
+    const socket = io();
+
+    // Al tocar una categoría, pedimos un nuevo ticket al servidor
+    document.querySelectorAll('button.cat').forEach(btn => {
+      btn.addEventListener('click', () => {
+        socket.emit('nuevo-ticket', btn.dataset.cat);
+      });
+    });
+
+    // El servidor nos confirma NUESTRO ticket (solo a este cliente)
+    socket.on('ticket-emitido', (ticket) => {
+      document.getElementById('codigo').textContent = ticket.codigo;
+      document.getElementById('ticket').classList.add('visible');
+    });
+
+    // Estado general (para mostrar cuántos hay en espera)
+    socket.on('estado', (estado) => {
+      document.getElementById('enEspera').textContent = estado.enEspera;
+    });
+  </script>
+</body>
+</html>

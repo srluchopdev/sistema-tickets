@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Puesto de atención</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      background: #eef2f6;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 1.5rem;
+    }
+    .tarjeta {
+      background: white;
+      border-radius: 16px;
+      box-shadow: 0 6px 24px rgba(0,0,0,0.08);
+      padding: 2rem;
+      width: 100%;
+      max-width: 430px;
+      display: flex;
+      flex-direction: column;
+      gap: 1.2rem;
+    }
+    h1 { color: #1a2733; font-size: 1.4rem; }
+    label { font-size: 0.9rem; color: #5a6b7a; }
+    select, button {
+      font-size: 1rem;
+      padding: 0.8rem 1rem;
+      border-radius: 10px;
+      border: 1px solid #cdd8e2;
+      width: 100%;
+    }
+    button {
+      border: none;
+      background: #2e7dd1;
+      color: white;
+      font-weight: 700;
+      font-size: 1.15rem;
+      cursor: pointer;
+    }
+    button:hover { background: #266bb5; }
+    button.secundario { background: #e6edf4; color: #2e7dd1; }
+    .atendiendo {
+      background: #f0f7ff;
+      border: 1px solid #bcd9f5;
+      border-radius: 10px;
+      padding: 1rem;
+      text-align: center;
+    }
+    .atendiendo .cod { font-size: 2.6rem; font-weight: 800; color: #2e7dd1; }
+    .fila { display: flex; justify-content: space-between; font-size: 0.95rem; color: #5a6b7a; }
+    .cola { font-size: 0.9rem; color: #5a6b7a; line-height: 1.6; }
+    .aviso { color: #b3261e; font-size: 0.9rem; text-align: center; min-height: 1.2em; }
+  </style>
+</head>
+<body>
+  <div class="tarjeta">
+    <h1>👤 Puesto de atención</h1>
+
+    <div>
+      <label for="puesto">Número de puesto</label>
+      <select id="puesto">
+        <option>1</option><option>2</option><option>3</option>
+        <option>4</option><option>5</option><option>10</option>
+      </select>
+    </div>
+
+    <div class="atendiendo">
+      <div style="font-size:0.85rem;color:#5a6b7a">Atendiendo ahora</div>
+      <div class="cod" id="actual">—</div>
+    </div>
+
+    <button id="llamar">📢 Llamar siguiente</button>
+    <button id="rellamar" class="secundario">🔁 Volver a llamar</button>
+    <div class="aviso" id="aviso"></div>
+
+    <div class="fila">
+      <span>En espera: <b id="enEspera">0</b></span>
+      <span>Atendidos hoy: <b id="atendidosHoy">0</b></span>
+    </div>
+    <div class="cola">Próximos en la cola: <span id="proximos">—</span></div>
+  </div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script>
+    const socket = io();
+    const aviso = document.getElementById('aviso');
+
+    // El operador llama al siguiente de la cola indicando su puesto
+    document.getElementById('llamar').addEventListener('click', () => {
+      aviso.textContent = '';
+      const puesto = document.getElementById('puesto').value;
+      socket.emit('llamar-siguiente', puesto);
+    });
+
+    // Repite el llamado del ticket actual (vuelve a sonar en la pantalla)
+    document.getElementById('rellamar').addEventListener('click', () => {
+      socket.emit('rellamar');
+    });
+
+    socket.on('cola-vacia', () => {
+      aviso.textContent = 'No hay tickets en espera.';
+    });
+
+    socket.on('estado', (estado) => {
+      document.getElementById('actual').textContent = estado.ticketActual ? estado.ticketActual.codigo : '—';
+      document.getElementById('enEspera').textContent = estado.enEspera;
+      document.getElementById('atendidosHoy').textContent = estado.atendidosHoy;
+      document.getElementById('proximos').textContent = estado.cola.slice(0, 5).join(', ') || '—';
+    });
+  </script>
+</body>
+</html>
